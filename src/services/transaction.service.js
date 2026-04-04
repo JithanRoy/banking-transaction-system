@@ -1,6 +1,43 @@
 import { pool } from "../config/db.js";
 import { ApiError } from "../utils/errors.js";
 
+const recordTransaction = async (
+  client,
+  { type, sourceAccountId, destinationAccountId, amount, details },
+) => {
+  try {
+    await client.query(
+      `INSERT INTO transactions (
+         transaction_type,
+         source_account_id,
+         destination_account_id,
+         amount,
+         status,
+         details
+       )
+       VALUES ($1, $2, $3, $4, $5, $6::jsonb)`,
+      [
+        type,
+        sourceAccountId ?? null,
+        destinationAccountId ?? null,
+        amount,
+        "SUCCESS",
+        JSON.stringify(details ?? {}),
+      ],
+    );
+  } catch (err) {
+    if (err.code === "42P01") {
+      throw new ApiError(
+        500,
+        "transactions table is missing. Apply the SQL schema before processing transactions",
+        "MISSING_TRANSACTIONS_TABLE",
+      );
+    }
+
+    throw err;
+  }
+};
+
 const getAccountById = async (client, accountId) => {
   const result = await client.query(
     "SELECT account_id, balance, version FROM accounts WHERE account_id = $1",
@@ -47,10 +84,25 @@ export const withdraw = async (accountId, amount) => {
     const newBalance = account.balance - amount;
 
     await updateAccountBalance(client, accountId, account.version, newBalance);
+    await recordTransaction(client, {
+      type: "withdraw",
+      sourceAccountId: accountId,
+      amount,
+      details: {
+        previousBalance: Number(account.balance),
+        newBalance,
+      },
+    });
 
     await client.query("COMMIT");
 
-    return { success: true, balance: newBalance };
+    return {
+      success: true,
+      type: "withdraw",
+      accountId,
+      amount,
+      balance: newBalance,
+    };
   } catch (err) {
     await client.query("ROLLBACK");
     throw err;
@@ -74,10 +126,25 @@ export const deposit = async (accountId, amount) => {
     const newBalance = Number(account.balance) + Number(amount);
 
     await updateAccountBalance(client, accountId, account.version, newBalance);
+    await recordTransaction(client, {
+      type: "deposit",
+      sourceAccountId: accountId,
+      amount,
+      details: {
+        previousBalance: Number(account.balance),
+        newBalance,
+      },
+    });
 
     await client.query("COMMIT");
 
-    return { success: true, balance: newBalance };
+    return {
+      success: true,
+      type: "deposit",
+      accountId,
+      amount,
+      balance: newBalance,
+    };
   } catch (err) {
     await client.query("ROLLBACK");
     throw err;
@@ -129,6 +196,18 @@ export const transfer = async (fromAccountId, toAccountId, amount) => {
       toAccount.version,
       toNewBalance,
     );
+    await recordTransaction(client, {
+      type: "transfer",
+      sourceAccountId: fromAccountId,
+      destinationAccountId: toAccountId,
+      amount,
+      details: {
+        fromPreviousBalance: Number(fromAccount.balance),
+        fromNewBalance,
+        toPreviousBalance: Number(toAccount.balance),
+        toNewBalance,
+      },
+    });
 
     await client.query("COMMIT");
 

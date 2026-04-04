@@ -1,3 +1,4 @@
+import { getIO } from "../realtime/socket.js";
 import {
   deposit,
   transfer,
@@ -27,15 +28,34 @@ const parseAccountId = (accountId) => {
   return accountId.trim();
 };
 
+const emitRealtimeEvent = (event, payload) => {
+  const io = getIO();
+
+  if (io) {
+    io.emit(event, payload);
+  }
+};
+
 export const withdrawController = async (req, res) => {
   try {
     const accountId = parseAccountId(req.body.accountId);
     const amount = parseAmount(req.body.amount);
 
     const result = await withdraw(accountId, amount);
+    emitRealtimeEvent("transaction:created", result);
+    emitRealtimeEvent("balance:updated", {
+      accountId: result.accountId,
+      balance: result.balance,
+    });
     res.status(200).json(result);
   } catch (error) {
     const httpError = toHttpError(error);
+    emitRealtimeEvent("transaction:failed", {
+      type: "withdraw",
+      accountId: req.body.accountId ?? null,
+      amount: req.body.amount ?? null,
+      ...httpError.body,
+    });
     res.status(httpError.statusCode).json(httpError.body);
   }
 };
@@ -46,9 +66,20 @@ export const depositController = async (req, res) => {
     const amount = parseAmount(req.body.amount);
 
     const result = await deposit(accountId, amount);
+    emitRealtimeEvent("transaction:created", result);
+    emitRealtimeEvent("balance:updated", {
+      accountId: result.accountId,
+      balance: result.balance,
+    });
     res.status(200).json(result);
   } catch (error) {
     const httpError = toHttpError(error);
+    emitRealtimeEvent("transaction:failed", {
+      type: "deposit",
+      accountId: req.body.accountId ?? null,
+      amount: req.body.amount ?? null,
+      ...httpError.body,
+    });
     res.status(httpError.statusCode).json(httpError.body);
   }
 };
@@ -68,9 +99,25 @@ export const transferController = async (req, res) => {
     }
 
     const result = await transfer(fromAccountId, toAccountId, amount);
+    emitRealtimeEvent("transaction:created", result);
+    emitRealtimeEvent("balance:updated", {
+      accountId: result.fromAccount.accountId,
+      balance: result.fromAccount.balance,
+    });
+    emitRealtimeEvent("balance:updated", {
+      accountId: result.toAccount.accountId,
+      balance: result.toAccount.balance,
+    });
     res.status(200).json(result);
   } catch (error) {
     const httpError = toHttpError(error);
+    emitRealtimeEvent("transaction:failed", {
+      type: "transfer",
+      fromAccountId: req.body.fromAccountId ?? null,
+      toAccountId: req.body.toAccountId ?? null,
+      amount: req.body.amount ?? null,
+      ...httpError.body,
+    });
     res.status(httpError.statusCode).json(httpError.body);
   }
 };
