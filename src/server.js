@@ -4,6 +4,7 @@ import app from "./app.js";
 import { setIO } from "./realtime/socket.js";
 
 const PORT = process.env.PORT || 5000;
+const BASE_URL = process.env.APP_BASE_URL || `http://localhost:${PORT}`;
 
 const httpServer = createServer(app);
 
@@ -26,4 +27,6 @@ io.on("connection", (socket) => {
 
 httpServer.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
+  console.log(`API docs UI: ${BASE_URL}/api-docs`);
+  console.log(`OpenAPI spec: ${BASE_URL}/docs/openapi.yaml`);
 });

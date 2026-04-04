@@ -1,0 +1,304 @@
+openapi: 3.0.3
+info:
+  title: Banking Transaction System API
+  version: 1.0.0
+  description: >-
+    API for account management and concurrency-safe financial transactions.
+servers:
+  - url: http://localhost:5000
+    description: Local development
+
+tags:
+  - name: Accounts
+  - name: Transactions
+
+paths:
+  /api/accounts:
+    post:
+      tags: [Accounts]
+      summary: Create a new account
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateAccountRequest"
+      responses:
+        "201":
+          description: Account created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "409":
+          description: Account already exists
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /api/accounts/{accountId}:
+    get:
+      tags: [Accounts]
+      summary: Get account by accountId
+      parameters:
+        - in: path
+          name: accountId
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Account details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Account"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /api/transactions/deposit:
+    post:
+      tags: [Transactions]
+      summary: Deposit amount into an account
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AccountAmountRequest"
+      responses:
+        "200":
+          description: Deposit accepted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SingleAccountTransactionResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /api/transactions/withdraw:
+    post:
+      tags: [Transactions]
+      summary: Withdraw amount from an account
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AccountAmountRequest"
+      responses:
+        "200":
+          description: Withdrawal accepted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SingleAccountTransactionResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "422":
+          description: Insufficient balance
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /api/transactions/transfer:
+    post:
+      tags: [Transactions]
+      summary: Transfer amount between two accounts
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TransferRequest"
+      responses:
+        "200":
+          description: Transfer accepted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TransferResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "422":
+          description: Insufficient balance
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+components:
+  schemas:
+    CreateAccountRequest:
+      type: object
+      required: [accountId, holderName, balance]
+      properties:
+        accountId:
+          type: string
+          example: ACC1001
+        holderName:
+          type: string
+          example: John Doe
+        balance:
+          type: number
+          format: float
+          minimum: 0
+          example: 1000
+
+    Account:
+      type: object
+      properties:
+        account_id:
+          type: string
+          example: ACC1001
+        holder_name:
+          type: string
+          example: John Doe
+        balance:
+          type: number
+          example: 997
+        version:
+          type: integer
+          example: 12
+
+    AccountAmountRequest:
+      type: object
+      required: [accountId, amount]
+      properties:
+        accountId:
+          type: string
+          example: ACC1001
+        amount:
+          type: number
+          minimum: 0.01
+          example: 25
+
+    TransferRequest:
+      type: object
+      required: [fromAccountId, toAccountId, amount]
+      properties:
+        fromAccountId:
+          type: string
+          example: ACC1001
+        toAccountId:
+          type: string
+          example: ACC1002
+        amount:
+          type: number
+          minimum: 0.01
+          example: 10
+
+    SingleAccountTransactionResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        type:
+          type: string
+          enum: [deposit, withdraw]
+        accountId:
+          type: string
+          example: ACC1001
+        amount:
+          type: number
+          example: 10
+        balance:
+          type: number
+          example: 1010
+
+    TransferResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        fromAccount:
+          type: object
+          properties:
+            accountId:
+              type: string
+            balance:
+              type: number
+        toAccount:
+          type: object
+          properties:
+            accountId:
+              type: string
+            balance:
+              type: number
+
+    MessageResponse:
+      type: object
+      properties:
+        message:
+          type: string
+          example: Account created
+
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+          example: Conflict detected. Try again
+        code:
+          type: string
+          example: VERSION_CONFLICT
+
+  responses:
+    BadRequest:
+      description: Bad request
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    NotFound:
+      description: Not found
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    Conflict:
+      description: Optimistic locking conflict
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    InternalServerError:
+      description: Internal server error
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+
+x-realtime-events:
+  - name: transaction:created
+    payloadDescription: Successful transaction payload from API response
+  - name: balance:updated
+    payloadDescription: Account balance update with accountId and new balance
+  - name: transaction:failed
+    payloadDescription: Error payload with operation metadata and error code
