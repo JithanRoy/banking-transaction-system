@@ -2,28 +2,26 @@
 
 ## Summary
 
-This project is a small backend API for a banking system built with Node.js, Express, and PostgreSQL. It focuses on two core areas:
+This project is a Node.js + Express backend for concurrent banking operations with:
 
 - account creation and retrieval
-- balance withdrawal with transaction handling and optimistic locking
+- deposit, withdraw, and transfer transactions
+- optimistic concurrency control (OCC) using account `version`
+- real-time transaction/balance events via Socket.IO
+- OpenAPI documentation and Docker setup
 
-The codebase currently contains two very similar application layouts:
+The active application code is under `src/`. Root-level `app.js` and `server.js` are lightweight re-exports/entry wrappers.
 
-- a root-level app structure (`app.js`, `server.js`, `controllers/`, `config/`)
-- a `src/` app structure with the same purpose
+## Stack
 
-Based on the files currently present and the open editor context, the `src/` version appears to be the active working structure.
-
-## Main Stack
-
-- Node.js
+- Node.js (ES modules)
 - Express
-- PostgreSQL via `pg`
-- `dotenv` for environment variables
-- `cors` for cross-origin requests
-- `nodemon` as a dev dependency
+- PostgreSQL via `pg` (works with Supabase PostgreSQL)
+- Socket.IO
+- `dotenv`, `cors`
+- Node built-in test runner (`node --test`)
 
-## Current Structure
+## Current Project Structure
 
 ```text
 src/
@@ -33,140 +31,83 @@ src/
     db.js
   controllers/
     account.controller.js
+    transaction.controller.js
   routes/
     account.routes.js
+    transaction.routes.js
   services/
     transaction.service.js
+  realtime/
+    socket.js
+  utils/
+    errors.js
+
+db/
+  schema.sql
+docs/
+  openapi.yaml
+load-tests/
+  concurrency.js
+test/
+  account.controller.test.js
+  transaction.service.test.js
 ```
 
-There is also a duplicate root-level structure:
+## Runtime Flow
 
-```text
-app.js
-server.js
-config/db.js
-controllers/account.controller.js
-```
+1. `src/server.js` creates HTTP server + Socket.IO server, then starts listening on `PORT` (default `5000`).
+2. `src/app.js` configures middleware and routes:
+   - `GET /`
+   - `GET /api-docs`
+   - static docs under `/docs`
+   - `/api/accounts`
+   - `/api/transactions`
+3. `src/config/db.js` creates a `pg` pool from `DATABASE_URL`, with optional SSL (`DATABASE_SSL=true`) and Supabase host detection.
 
-## How The App Flows
+## Implemented API
 
-### 1. Server startup
-
-`src/server.js` starts the Express app on `process.env.PORT` or `5000`.
-
-### 2. App setup
-
-`src/app.js`:
-
-- loads environment variables
-- enables CORS
-- enables JSON body parsing
-- mounts route groups under:
-  - `/api/accounts`
-  - `/api/transactions`
-- exposes a root health-style response at `/`
-
-### 3. Database access
-
-`src/config/db.js` creates a PostgreSQL connection pool using:
-
-- `process.env.DATABASE_URL`
-
-### 4. Account features
-
-`src/controllers/account.controller.js` currently supports:
-
-- `createAccount`
-  - inserts a new account into the `accounts` table
-- `getAccount`
-  - fetches a single account by `account_id`
-
-`src/routes/account.routes.js` exposes:
-
-- `POST /api/accounts/`
+- `POST /api/accounts`
 - `GET /api/accounts/:id`
+- `POST /api/transactions/deposit`
+- `POST /api/transactions/withdraw`
+- `POST /api/transactions/transfer`
 
-### 5. Transaction logic
+## OCC and Transaction Safety
 
-`src/services/transaction.service.js` implements withdrawal logic:
+`src/services/transaction.service.js` performs database transactions with:
 
-- opens a DB transaction with `BEGIN`
-- fetches the account row
-- checks that the account exists
-- checks that the balance is sufficient
-- updates the account using optimistic locking through a `version` column
-- commits on success
-- rolls back on failure
+- `BEGIN` / `COMMIT` / `ROLLBACK`
+- account existence and balance validation
+- OCC update pattern:
+  - `UPDATE accounts SET ... WHERE account_id = $2 AND version = $3`
+  - if update affects zero rows, returns `VERSION_CONFLICT` (`409`)
+- transaction journaling into `transactions` table
 
-This is the most important business-logic-heavy part of the project right now.
+## Real-Time Events
 
-## Database Expectations
+`src/controllers/transaction.controller.js` emits:
 
-From the code, the `accounts` table is expected to have at least:
+- `transaction:created`
+- `balance:updated`
+- `transaction:failed`
 
-- `account_id`
-- `holder_name`
-- `balance`
-- `version`
+using `src/realtime/socket.js`.
 
-The `version` field is required for the optimistic locking update in the withdrawal flow.
+## Database Schema
 
-## Observations And Gaps
+`db/schema.sql` contains:
 
-### Missing transaction route file
+- `accounts` table with `version` and non-negative `balance` constraint
+- `transactions` table with transaction type/status/details
+- supporting indexes for transaction lookup
 
-`src/app.js` imports:
+## Testing and Validation
 
-- `./routes/transaction.routes.js`
+- Unit tests in `test/` run with `npm test`
+- OpenAPI spec at `docs/openapi.yaml`
+- Swagger UI available at `/api-docs`
+- Load test script at `load-tests/concurrency.js` (k6)
 
-That file does not currently exist in `src/routes/`, so the app will fail at runtime unless it is added.
+## Current Status
 
-### Controller logic inside service file
-
-`src/services/transaction.service.js` contains both:
-
-- service logic (`withdraw`)
-- Express controller logic (`withdrawController`)
-
-That works, but it mixes responsibilities. A cleaner split would be:
-
-- service file for database/business logic
-- controller file for request/response handling
-- route file for endpoint wiring
-
-### Duplicate project layout
-
-The root folder and `src/` folder both contain overlapping app files. This can become confusing during development because it is not obvious which entrypoint should be used.
-
-### Package configuration mismatch
-
-The project uses ES module `import` syntax, but `package.json` currently does not show:
-
-- `"type": "module"`
-
-It also does not include a `start` or `dev` script. Unless that is handled elsewhere, runtime setup is still incomplete.
-
-## Suggested Next Cleanup Steps
-
-1. Choose one app layout: root or `src/`
-2. Add `src/routes/transaction.routes.js`
-3. Move `withdrawController` into a dedicated controller file
-4. Add `package.json` scripts such as `start` and `dev`
-5. Add `"type": "module"` if this project is intended to run with native ESM
-6. Add a schema or SQL setup file for the `accounts` table
-
-## Quick Endpoint Snapshot
-
-### Implemented
-
-- `GET /`
-- `POST /api/accounts/`
-- `GET /api/accounts/:id`
-
-### Intended but not fully wired
-
-- transaction withdrawal endpoint under `/api/transactions`
-
-## Bottom Line
-
-This is a straightforward Express + PostgreSQL banking API skeleton with a solid start on account management and a thoughtful withdrawal flow using optimistic locking. The biggest things holding it back are the missing transaction route, duplicate folder structure, and incomplete package/runtime setup.
+This codebase is functionally complete for the assignment scope (accounts, transactions, OCC, realtime, docs, tests, load script). Remaining work is mainly submission packaging: final report + load test result evidence from an environment with `k6` installed.
