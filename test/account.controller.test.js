@@ -1,6 +1,10 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { createAccount, getAccount } from "../src/controllers/account.controller.js";
+import {
+  createAccount,
+  getAccount,
+  getAllAccounts,
+} from "../src/controllers/account.controller.js";
 import { pool } from "../src/config/db.js";
 
 const createResponse = () => {
@@ -134,6 +138,111 @@ test("getAccount returns 404 when the account does not exist", async () => {
       error: "Account not found",
       code: "ACCOUNT_NOT_FOUND",
     });
+  } finally {
+    pool.query = originalQuery;
+  }
+});
+
+test("getAllAccounts returns all account details", async () => {
+  const originalQuery = pool.query;
+  const calls = [];
+
+  pool.query = async (sql, params) => {
+    calls.push({ sql, params });
+
+    if (/COUNT\(\*\) AS total FROM accounts/i.test(sql)) {
+      return {
+        rowCount: 1,
+        rows: [{ total: "2" }],
+      };
+    }
+
+    return {
+      rowCount: 2,
+      rows: [
+        {
+          account_id: "ACC1001",
+          holder_name: "Jane Doe",
+          balance: 250,
+          version: 1,
+        },
+        {
+          account_id: "ACC1002",
+          holder_name: "John Doe",
+          balance: 500,
+          version: 3,
+        },
+      ],
+    };
+  };
+
+  try {
+    const req = {
+      query: {
+        page: "1",
+        limit: "2",
+      },
+    };
+    const res = createResponse();
+
+    await getAllAccounts(req, res);
+
+    assert.equal(res.statusCode, 200);
+    assert.deepEqual(res.body, {
+      data: [
+        {
+          account_id: "ACC1001",
+          holder_name: "Jane Doe",
+          balance: 250,
+          version: 1,
+        },
+        {
+          account_id: "ACC1002",
+          holder_name: "John Doe",
+          balance: 500,
+          version: 3,
+        },
+      ],
+      pagination: {
+        page: 1,
+        limit: 2,
+        total: 2,
+        totalPages: 1,
+      },
+    });
+    assert.equal(calls.length, 2);
+    assert.match(calls[1].sql, /LIMIT \$1 OFFSET \$2/i);
+    assert.deepEqual(calls[1].params, [2, 0]);
+  } finally {
+    pool.query = originalQuery;
+  }
+});
+
+test("getAllAccounts rejects invalid pagination values", async () => {
+  const originalQuery = pool.query;
+  let called = false;
+
+  pool.query = async () => {
+    called = true;
+    return { rowCount: 0, rows: [] };
+  };
+
+  try {
+    const req = {
+      query: {
+        page: "0",
+      },
+    };
+    const res = createResponse();
+
+    await getAllAccounts(req, res);
+
+    assert.equal(res.statusCode, 400);
+    assert.deepEqual(res.body, {
+      error: "page must be a positive integer",
+      code: "INVALID_PAGE",
+    });
+    assert.equal(called, false);
   } finally {
     pool.query = originalQuery;
   }

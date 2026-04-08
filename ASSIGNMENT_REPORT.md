@@ -71,7 +71,8 @@ Verified responses:
 - `GET /` -> `200`
 - `GET /docs/openapi.yaml` -> `200`
 - `GET /api-docs` -> `200`
-- `POST /api/accounts` -> `201`
+- `GET /api/accounts` -> `200`
+- `POST /api/accounts/create` -> `201`
 - `GET /api/accounts/:id` -> `200`
 - `POST /api/transactions/deposit` -> `200`
 - `POST /api/transactions/withdraw` -> `200`

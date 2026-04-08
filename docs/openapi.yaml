@@ -14,6 +14,37 @@ tags:
 
 paths:
   /api/accounts:
+    get:
+      tags: [Accounts]
+      summary: Get all accounts with details
+      parameters:
+        - in: query
+          name: page
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - in: query
+          name: limit
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            default: 10
+      responses:
+        "200":
+          description: Paginated list of accounts
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PaginatedAccountsResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /api/accounts/create:
     post:
       tags: [Accounts]
       summary: Create a new account
@@ -184,6 +215,32 @@ components:
         version:
           type: integer
           example: 12
+
+    Pagination:
+      type: object
+      properties:
+        page:
+          type: integer
+          example: 1
+        limit:
+          type: integer
+          example: 10
+        total:
+          type: integer
+          example: 25
+        totalPages:
+          type: integer
+          example: 3
+
+    PaginatedAccountsResponse:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/Account"
+        pagination:
+          $ref: "#/components/schemas/Pagination"
 
     AccountAmountRequest:
       type: object

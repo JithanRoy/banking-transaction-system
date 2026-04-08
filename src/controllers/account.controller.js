@@ -31,6 +31,24 @@ const parseBalance = (balance) => {
   return parsed;
 };
 
+const parsePositiveInteger = (value, fieldName, defaultValue) => {
+  if (value === undefined) {
+    return defaultValue;
+  }
+
+  const parsed = Number(value);
+
+  if (!Number.isInteger(parsed) || parsed <= 0) {
+    throw new ApiError(
+      400,
+      `${fieldName} must be a positive integer`,
+      `INVALID_${fieldName.toUpperCase()}`,
+    );
+  }
+
+  return parsed;
+};
+
 export const createAccount = async (req, res) => {
   try {
     const accountId = parseAccountId(req.body.accountId);
@@ -52,6 +70,39 @@ export const createAccount = async (req, res) => {
       });
     }
 
+    const httpError = toHttpError(err);
+    res.status(httpError.statusCode).json(httpError.body);
+  }
+};
+
+export const getAllAccounts = async (req, res) => {
+  try {
+    const page = parsePositiveInteger(req.query.page, "page", 1);
+    const limit = parsePositiveInteger(req.query.limit, "limit", 10);
+    const offset = (page - 1) * limit;
+
+    const countResult = await pool.query("SELECT COUNT(*) AS total FROM accounts");
+    const result = await pool.query(
+      `SELECT account_id, holder_name, balance, version
+       FROM accounts
+       ORDER BY account_id ASC
+       LIMIT $1 OFFSET $2`,
+      [limit, offset],
+    );
+
+    const total = Number(countResult.rows[0].total);
+    const totalPages = total === 0 ? 0 : Math.ceil(total / limit);
+
+    res.status(200).json({
+      data: result.rows,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages,
+      },
+    });
+  } catch (err) {
     const httpError = toHttpError(err);
     res.status(httpError.statusCode).json(httpError.body);
   }

@@ -31,7 +31,8 @@ npm run dev
 
 ## API Endpoints
 
-- `POST /api/accounts`
+- `GET /api/accounts`
+- `POST /api/accounts/create`
 - `GET /api/accounts/:id`
 - `POST /api/transactions/deposit`
 - `POST /api/transactions/withdraw`

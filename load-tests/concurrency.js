@@ -29,7 +29,7 @@ export const options = {
 
 export function setup() {
   const createResponse = http.post(
-    `${BASE_URL}/api/accounts`,
+    `${BASE_URL}/api/accounts/create`,
     JSON.stringify({
       accountId: TEST_ACCOUNT_ID,
       holderName: "Load Test Account",
