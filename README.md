@@ -84,6 +84,22 @@ Optional environment overrides:
 
 Script location: `load-tests/concurrency.js`
 
+### Latest Concurrent Test Summary
+
+A `k6` concurrency test was executed with `1000` virtual users for `30s` using `load-tests/concurrency.js`.
+
+- Setup passed successfully and the test account was created or reused.
+- Total HTTP requests: `501`
+- Failed requests: `89.82%` (`450` out of `501`)
+- Average response time: `30.75s`
+- 95th percentile response time: `56.99s`
+- Internal server error rate: `0.00%`
+- Teardown timed out after `60s`, indicating the system remained overloaded after the main run.
+
+Result:
+
+The application stayed free of internal server errors, but it did not meet the performance threshold under `1000` concurrent users. The `http_req_duration` threshold failed because `p(95)` was far above the expected `2000ms`, and the high request failure rate indicates substantial performance and scalability limits at this load level.
+
 ## API Documentation
 
 Step 1. Open API spec:

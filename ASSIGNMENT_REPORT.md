@@ -91,10 +91,34 @@ npm run load:test
 npm run load:test:1000
 ```
 
-Current environment note:
+Concurrent test executed:
 
-- `k6` is not installed in this environment (`k6: command not found`), so full load-run metrics were not captured here.
-- The script and npm tasks are ready; run from a machine with `k6` installed to capture final throughput/latency/conflict-rate evidence.
+- tool: `k6`
+- scenario: `concurrent_transactions`
+- virtual users: `1000`
+- duration: `30s`
+
+Observed results:
+
+- setup check passed: `setup account created or already exists`
+- total HTTP requests: `501`
+- failed requests: `89.82%` (`450` of `501`)
+- average response time: `30.75s`
+- median response time: `30.9s`
+- p(90): `54.15s`
+- p(95): `56.99s`
+- max response time: `59.83s`
+- internal server errors: `0.00%`
+- teardown timed out after `60s`
+
+Threshold evaluation:
+
+- `http_req_duration`: failed because `p(95)=56.99s` exceeded the target `p(95)<2000ms`
+- `internal_errors`: passed with `rate=0.00%`
+
+Interpretation:
+
+The system remained free from internal `5xx` server errors during the observed requests, but it did not sustain the assignment-level load successfully. Under `1000` concurrent users, response times became extremely high, most requests failed, and the teardown phase could not complete within the timeout window. This indicates that the application is functionally operational but currently has significant performance and scalability limitations under heavy concurrent traffic.
 
 ## 5. Conclusion
 
@@ -108,4 +132,4 @@ The assignment implementation is complete for core scope:
 - OpenAPI docs
 - unit tests
 
-Remaining submission step is generating and attaching `k6` load-test run output from a `k6`-enabled environment.
+Load testing evidence has now been captured, and the current improvement area is system performance under heavy concurrent load.

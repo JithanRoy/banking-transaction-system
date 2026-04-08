@@ -1,4 +1,4 @@
-import { check } from "k6";
+import { check, fail } from "k6";
 import http from "k6/http";
 import { Counter, Rate } from "k6/metrics";
 
@@ -12,6 +12,7 @@ const txSuccess = new Counter("tx_success");
 const txConflict = new Counter("tx_conflict");
 const txFailed = new Counter("tx_failed");
 const internalErrors = new Rate("internal_errors");
+const requestErrors = new Counter("request_errors");
 
 export const options = {
   scenarios: {
@@ -45,6 +46,13 @@ export function setup() {
       res.status === 201 || res.status === 409,
   });
 
+  if (createResponse.error || (createResponse.status !== 201 && createResponse.status !== 409)) {
+    console.error(
+      `Setup failed for ${BASE_URL}/api/accounts/create. status=${createResponse.status} error=${createResponse.error || "none"} error_code=${createResponse.error_code || "none"} body=${createResponse.body || "empty"}`,
+    );
+    fail("Setup request failed. Verify BASE_URL and that the API is reachable from the k6 runtime.");
+  }
+
   return {
     accountId: TEST_ACCOUNT_ID,
   };
@@ -73,6 +81,10 @@ export default function (data) {
   );
 
   [depositResponse, withdrawResponse].forEach((response) => {
+    if (response.error) {
+      requestErrors.add(1);
+    }
+
     if (response.status >= 200 && response.status < 300) {
       txSuccess.add(1);
     } else if (response.status === 409) {
@@ -89,6 +101,13 @@ export function teardown(data) {
   const accountResponse = http.get(
     `${BASE_URL}/api/accounts/${data.accountId}`,
   );
+
+  if (accountResponse.error || accountResponse.status !== 200) {
+    console.error(
+      `Teardown lookup failed for ${BASE_URL}/api/accounts/${data.accountId}. status=${accountResponse.status} error=${accountResponse.error || "none"} error_code=${accountResponse.error_code || "none"} body=${accountResponse.body || "empty"}`,
+    );
+    return;
+  }
 
   const accountPayload = accountResponse.json();
   check(accountResponse, {
