@@ -7,9 +7,7 @@ import {
 import { ApiError, toHttpError } from "../utils/errors.js";
 
 const parseAmount = (amount) => {
-  const parsed = Number(amount);
-
-  if (!Number.isFinite(parsed) || parsed <= 0) {
+  if (amount === undefined || amount === null || amount === "") {
     throw new ApiError(
       400,
       "Amount must be a positive number",
@@ -17,7 +15,7 @@ const parseAmount = (amount) => {
     );
   }
 
-  return parsed;
+  return amount;
 };
 
 const parseAccountId = (accountId) => {

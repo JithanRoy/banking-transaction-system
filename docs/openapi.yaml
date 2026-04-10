@@ -91,6 +91,54 @@ paths:
           $ref: "#/components/responses/BadRequest"
         "404":
           $ref: "#/components/responses/NotFound"
+    delete:
+      tags: [Accounts]
+      summary: Delete account by accountId
+      parameters:
+        - in: path
+          name: accountId
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Account deleted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeleteAccountResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /api/accounts/update/{accountId}:
+    put:
+      tags: [Accounts]
+      summary: Update account holderName and/or balance
+      parameters:
+        - in: path
+          name: accountId
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateAccountRequest"
+      responses:
+        "200":
+          description: Updated account details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Account"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
 
   /api/transactions/deposit:
     post:
@@ -200,9 +248,24 @@ components:
           minimum: 0
           example: 1000
 
+    UpdateAccountRequest:
+      type: object
+      properties:
+        holderName:
+          type: string
+          example: Updated User
+        balance:
+          type: number
+          format: float
+          minimum: 0
+          example: 1500
+
     Account:
       type: object
       properties:
+        id:
+          type: integer
+          example: 1
         account_id:
           type: string
           example: ACC1001
@@ -315,6 +378,19 @@ components:
         message:
           type: string
           example: Account created
+        accountId:
+          type: string
+          example: ACC1001
+
+    DeleteAccountResponse:
+      type: object
+      properties:
+        message:
+          type: string
+          example: Account deleted
+        accountId:
+          type: string
+          example: ACC1001
 
     ErrorResponse:
       type: object

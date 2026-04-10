@@ -2,8 +2,10 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   createAccount,
+  deleteAccount,
   getAccount,
   getAllAccounts,
+  updateAccount,
 } from "../src/controllers/account.controller.js";
 import { pool } from "../src/config/db.js";
 
@@ -46,7 +48,7 @@ test("createAccount stores a valid account and returns 201", async () => {
     await createAccount(req, res);
 
     assert.equal(res.statusCode, 201);
-    assert.deepEqual(res.body, { message: "Account created" });
+    assert.deepEqual(res.body, { message: "Account created", accountId: "ACC1001" });
     assert.equal(calls.length, 1);
     assert.match(calls[0].sql, /INSERT INTO accounts/i);
     assert.deepEqual(calls[0].params, ["ACC1001", "Jane Doe", 250]);
@@ -161,12 +163,14 @@ test("getAllAccounts returns all account details", async () => {
       rowCount: 2,
       rows: [
         {
+          id: 1,
           account_id: "ACC1001",
           holder_name: "Jane Doe",
           balance: 250,
           version: 1,
         },
         {
+          id: 2,
           account_id: "ACC1002",
           holder_name: "John Doe",
           balance: 500,
@@ -191,12 +195,14 @@ test("getAllAccounts returns all account details", async () => {
     assert.deepEqual(res.body, {
       data: [
         {
+          id: 1,
           account_id: "ACC1001",
           holder_name: "Jane Doe",
           balance: 250,
           version: 1,
         },
         {
+          id: 2,
           account_id: "ACC1002",
           holder_name: "John Doe",
           balance: 500,
@@ -243,6 +249,128 @@ test("getAllAccounts rejects invalid pagination values", async () => {
       code: "INVALID_PAGE",
     });
     assert.equal(called, false);
+  } finally {
+    pool.query = originalQuery;
+  }
+});
+
+test("updateAccount updates holderName and balance when valid fields are provided", async () => {
+  const originalQuery = pool.query;
+  const calls = [];
+
+  pool.query = async (sql, params) => {
+    calls.push({ sql, params });
+    return {
+      rowCount: 1,
+      rows: [
+        {
+          id: 10,
+          account_id: "ACC1001",
+          holder_name: "Updated Name",
+          balance: 300,
+          version: 2,
+        },
+      ],
+    };
+  };
+
+  try {
+    const req = {
+      params: { id: "ACC1001" },
+      body: {
+        holderName: "Updated Name",
+        balance: 300,
+      },
+    };
+    const res = createResponse();
+
+    await updateAccount(req, res);
+
+    assert.equal(res.statusCode, 200);
+    assert.deepEqual(res.body, {
+      id: 10,
+      account_id: "ACC1001",
+      holder_name: "Updated Name",
+      balance: 300,
+      version: 2,
+    });
+    assert.equal(calls.length, 1);
+    assert.match(calls[0].sql, /UPDATE accounts/i);
+    assert.deepEqual(calls[0].params, ["Updated Name", 300, "ACC1001"]);
+  } finally {
+    pool.query = originalQuery;
+  }
+});
+
+test("updateAccount rejects requests without any updatable fields", async () => {
+  const originalQuery = pool.query;
+  let called = false;
+
+  pool.query = async () => {
+    called = true;
+    return { rowCount: 1, rows: [] };
+  };
+
+  try {
+    const req = {
+      params: { id: "ACC1001" },
+      body: {},
+    };
+    const res = createResponse();
+
+    await updateAccount(req, res);
+
+    assert.equal(res.statusCode, 400);
+    assert.deepEqual(res.body, {
+      error: "At least one updatable field is required (holderName, balance)",
+      code: "NO_UPDATE_FIELDS",
+    });
+    assert.equal(called, false);
+  } finally {
+    pool.query = originalQuery;
+  }
+});
+
+test("deleteAccount returns 200 when account exists", async () => {
+  const originalQuery = pool.query;
+
+  pool.query = async () => ({
+    rowCount: 1,
+    rows: [{ account_id: "ACC1001" }],
+  });
+
+  try {
+    const req = { params: { id: "ACC1001" } };
+    const res = createResponse();
+
+    await deleteAccount(req, res);
+
+    assert.equal(res.statusCode, 200);
+    assert.deepEqual(res.body, {
+      message: "Account deleted",
+      accountId: "ACC1001",
+    });
+  } finally {
+    pool.query = originalQuery;
+  }
+});
+
+test("deleteAccount returns 404 when account does not exist", async () => {
+  const originalQuery = pool.query;
+
+  pool.query = async () => ({ rowCount: 0, rows: [] });
+
+  try {
+    const req = { params: { id: "MISSING" } };
+    const res = createResponse();
+
+    await deleteAccount(req, res);
+
+    assert.equal(res.statusCode, 404);
+    assert.deepEqual(res.body, {
+      error: "Account not found",
+      code: "ACCOUNT_NOT_FOUND",
+    });
   } finally {
     pool.query = originalQuery;
   }

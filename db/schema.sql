@@ -1,4 +1,5 @@
 CREATE TABLE IF NOT EXISTS accounts (
+  id BIGSERIAL UNIQUE NOT NULL,
   account_id VARCHAR(50) PRIMARY KEY,
   holder_name VARCHAR(100) NOT NULL,
   balance NUMERIC(14, 2) NOT NULL CHECK (balance >= 0),
