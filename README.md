@@ -165,6 +165,7 @@ Schema is auto-initialized from `db/schema.sql`.
 - Swagger UI: `http://localhost:5000/api-docs`
 - OpenAPI file: `docs/openapi.yaml`
 - Raw spec served by API: `http://localhost:5000/docs/openapi.yaml`
+- Live Swagger UI: https://banking-transaction-system-6ak1.onrender.com/api-docs
 
 ## Main Endpoints
 
