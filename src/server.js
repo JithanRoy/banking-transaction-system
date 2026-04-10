@@ -5,12 +5,16 @@ import { setIO } from "./realtime/socket.js";
 
 const PORT = process.env.PORT || 5000;
 const BASE_URL = process.env.APP_BASE_URL || `http://localhost:${PORT}`;
+const allowedOrigins = (process.env.CORS_ORIGIN ?? "")
+  .split(",")
+  .map((origin) => origin.trim())
+  .filter(Boolean);
 
 const httpServer = createServer(app);
 
 const io = new Server(httpServer, {
   cors: {
-    origin: "*",
+    origin: allowedOrigins.length > 0 ? allowedOrigins : "*",
     methods: ["GET", "POST"],
   },
 });
